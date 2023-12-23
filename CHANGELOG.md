@@ -9,6 +9,9 @@
   - new opcode **2102 ([log_to_file](https://library.sannybuilder.com/#/sa/debug/2102))**
   - implemented support of opcodes **0662**, **0663** and **0664** (original Rockstar's script debugging opcodes. See DebugUtils.ini)
 - new and updated opcodes
+  - **0D27 ([memory_copy](https://library.sannybuilder.com/#/sa/CLEO/0D27))** - mirrored from CLEO+/NewOpcodes
+  - **0D4E ([read_struct](https://library.sannybuilder.com/#/sa/CLEO/0D4E))** - mirrored from CLEO+/NewOpcodes
+  - **0E28 ([write_struct](https://library.sannybuilder.com/#/sa/CLEO/0E28))** - mirrored from CLEO+/NewOpcodes
   - **0DD5 ([get_game_platform](https://library.sannybuilder.com/#/sa/CLEO/0DD5))**
   - **2000 ([resolve_filepath](https://library.sannybuilder.com/#/sa/CLEO/2000))**
   - **2001 ([get_script_filename](https://library.sannybuilder.com/#/sa/CLEO/2001))**

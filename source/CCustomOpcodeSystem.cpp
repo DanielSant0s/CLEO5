@@ -30,6 +30,9 @@ namespace CLEO
 	DWORD FUNC_feof;
 	DWORD FUNC_ferror;
 
+	OpcodeResult __stdcall opcode_0D27(CRunningScript* thread); // memory_copy
+	OpcodeResult __stdcall opcode_0D4E(CRunningScript* thread); // read_struct
+	OpcodeResult __stdcall opcode_0E28(CRunningScript* thread); // write_struct
 	OpcodeResult __stdcall opcode_0A8C(CRunningScript *thread);
 	OpcodeResult __stdcall opcode_0A8D(CRunningScript *thread);
 	OpcodeResult __stdcall opcode_0A8E(CRunningScript *thread);
@@ -344,6 +347,10 @@ namespace CLEO
 	CCustomOpcodeSystem::CCustomOpcodeSystem()
 	{
 		// register CLEO opcodes
+		CLEO_RegisterOpcode(0x0D27, opcode_0D27); // memory_copy
+		CLEO_RegisterOpcode(0x0D4E, opcode_0D4E); // read_struct
+		CLEO_RegisterOpcode(0x0E28, opcode_0E28); // write_struct
+
 		CLEO_RegisterOpcode(0x0A8C, opcode_0A8C);
 		CLEO_RegisterOpcode(0x0A8D, opcode_0A8D);
 		CLEO_RegisterOpcode(0x0A8E, opcode_0A8E);
@@ -1193,6 +1200,145 @@ namespace CLEO
 	/************************************************************************/
 	/*						Opcode definitions								*/
 	/************************************************************************/
+
+	//0D27=4,copy_memory %1d% to %2d% size %3d%
+	OpcodeResult __stdcall opcode_0D27(CRunningScript* thread)
+	{
+		// mirrors original opcode from CLEO+/NewOpcodes
+		DWORD src; *thread>> src;
+		DWORD trg; *thread >> trg;
+		int size; *thread >> size;
+
+		if (src <= CCustomOpcodeSystem::MinValidAddress)
+		{
+			SHOW_ERROR("Invalid '0x%X' source pointer param of opcode [0D27] in script %s\nScript suspended.", src, ((CCustomScript*)thread)->GetInfoStr().c_str());
+			return CCustomOpcodeSystem::ErrorSuspendScript(thread);
+		}
+
+		if (trg <= CCustomOpcodeSystem::MinValidAddress)
+		{
+			SHOW_ERROR("Invalid '0x%X' target pointer param of opcode [0D27] in script %s\nScript suspended.", trg, ((CCustomScript*)thread)->GetInfoStr().c_str());
+			return CCustomOpcodeSystem::ErrorSuspendScript(thread);
+		}
+
+		if (size <= 0)
+		{
+			SHOW_ERROR("[0D27] used with invalid size param (%d) in script %s\nScript suspended.", size, ((CCustomScript*)thread)->GetInfoStr().c_str());
+			return CCustomOpcodeSystem::ErrorSuspendScript(thread);
+		}
+
+		// memory blocks can not overlap
+		auto first = min(src, trg);
+		auto second = max(src, trg);
+		if((first + size) > second)
+		{
+			SHOW_ERROR("Memory blocks provided to [0D27] overlapping in script %s\nScript suspended.", size, ((CCustomScript*)thread)->GetInfoStr().c_str());
+			return CCustomOpcodeSystem::ErrorSuspendScript(thread);
+		}
+
+		return OR_CONTINUE;
+	}
+
+	//0D4E=4,read_struct %1d% offset %2d% size %3d% store_to %4d%
+	OpcodeResult __stdcall opcode_0D4E(CRunningScript* thread)
+	{
+		// mirrors original opcode from CLEO+/NewOpcodes
+		DWORD ptr; *thread >> ptr;
+		int offset; *thread >> offset;
+		int size; *thread >> size;
+
+		if (ptr <= CCustomOpcodeSystem::MinValidAddress)
+		{
+			SHOW_ERROR("Invalid '0x%X' pointer param of opcode [0D4E] in script %s\nScript suspended.", ptr, ((CCustomScript*)thread)->GetInfoStr().c_str());
+			return CCustomOpcodeSystem::ErrorSuspendScript(thread);
+		}
+
+		if (offset < 0) // unsigned in original opcode. Offsets with value so high, it becomes negative, can not produce valid address anyway
+		{
+			SHOW_ERROR("[0D4E] used with invalid offset param (%d) in script %s\nScript suspended.", offset, ((CCustomScript*)thread)->GetInfoStr().c_str());
+			return CCustomOpcodeSystem::ErrorSuspendScript(thread);
+		}
+
+		if (size <= 0) // unsigned in original opcode. Sizes with value so high, it becomes negative, would be invalid anyway
+		{
+			SHOW_ERROR("[0D4E] used with invalid size param (%d) in script %s\nScript suspended.", size, ((CCustomScript*)thread)->GetInfoStr().c_str());
+			return CCustomOpcodeSystem::ErrorSuspendScript(thread);
+		}
+
+		auto resultType = (eDataType)*thread->GetBytePointer();
+		if(IsVariable(resultType))
+		{
+			DWORD result = 0;
+			if(size > sizeof(DWORD))
+			{
+				LOG_WARNING(thread, "[0D4E] used with invalid size param (%d) in script %s", size, ((CCustomScript*)thread)->GetInfoStr().c_str());
+				size = sizeof(DWORD); // original opcode did buffer overflow, then used 4 bytes of read data
+			}
+
+			memcpy(&result, (void*)(ptr + offset), size);
+			*thread << result;
+			return OR_CONTINUE;
+		}
+		/*else if(IsVarString(resultType))
+		{
+			// CLEO+ tried to do some weird stuff here
+			// TODO: use CLEO_WriteStringOpcodeParam update CLEO+ to CLEO5
+			CLEO_SetIntOpcodeParam(thread, (DWORD)((char*)(ptr + offset)));
+		}*/
+
+		SHOW_ERROR("Invalid type (%s) of the result argument in opcode [0D4E] in script %s \nScript suspended.", ToKindStr(resultType), ((CCustomScript*)thread)->GetInfoStr().c_str());
+		return CCustomOpcodeSystem::ErrorSuspendScript(thread);
+	}
+
+	//0E28=3,write_struct %1d% offset %2d% size %3d% value %4d%
+	OpcodeResult __stdcall opcode_0E28(CRunningScript* thread)
+	{
+		// mirrors original opcode from CLEO+/NewOpcodes
+		DWORD ptr; *thread >> ptr;
+		int offset; *thread >> offset;
+		int size; *thread >> size;
+
+		if (ptr <= CCustomOpcodeSystem::MinValidAddress)
+		{
+			SHOW_ERROR("Invalid '0x%X' pointer param of opcode [0E28] in script %s\nScript suspended.", ptr, ((CCustomScript*)thread)->GetInfoStr().c_str());
+			return CCustomOpcodeSystem::ErrorSuspendScript(thread);
+		}
+
+		if (offset < 0) // unsigned in original opcode. Offsets with value so high, it becomes negative, can not produce valid address anyway
+		{
+			SHOW_ERROR("[0E28] used with invalid offset param (%d) in script %s\nScript suspended.", offset, ((CCustomScript*)thread)->GetInfoStr().c_str());
+			return CCustomOpcodeSystem::ErrorSuspendScript(thread);
+		}
+
+		if (size <= 0) // unsigned in original opcode. Sizes with value so high, it becomes negative, would be invalid anyway
+		{
+			SHOW_ERROR("[0E28] used with invalid size param (%d) in script %s\nScript suspended.", size, ((CCustomScript*)thread)->GetInfoStr().c_str());
+			return CCustomOpcodeSystem::ErrorSuspendScript(thread);
+		}
+
+		auto valueType = (eDataType)*thread->GetBytePointer();
+		if (IsImmInteger(valueType) && IsImmFloat(valueType) && IsVariable(valueType))
+		{
+			if (size > sizeof(DWORD))
+			{
+				LOG_WARNING(thread, "[0E28] used with invalid size param (%d) in script %s", size, ((CCustomScript*)thread)->GetInfoStr().c_str());
+				size = sizeof(DWORD); // original opcode did buffer overflow with garbage data
+			}
+
+			memcpy(GetScriptParamPointer(thread), (void*)(ptr + offset), size);
+			CLEO_SkipOpcodeParams(thread, 1);
+
+			return OR_CONTINUE;
+		}
+		/*else if(IsImmString(valueType) || IsVarString(valueType))
+		{
+			// CLEO+ tried to do some weird stuff here
+			*(char**)(ptr + offset) = (char*)CLEO_GetIntOpcodeParam(thread);
+		}*/
+
+		SHOW_ERROR("Invalid type (%s) of the value argument in opcode [0E28] in script %s \nScript suspended.", ToKindStr(valueType), ((CCustomScript*)thread)->GetInfoStr().c_str());
+		return CCustomOpcodeSystem::ErrorSuspendScript(thread);
+	}
 
 	//0A8C=4,write_memory %1d% size %2d% value %3d% virtual_protect %4d%
 	OpcodeResult __stdcall opcode_0A8C(CRunningScript *thread)
