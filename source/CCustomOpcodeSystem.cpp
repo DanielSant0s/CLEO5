@@ -1201,7 +1201,7 @@ namespace CLEO
 	/*						Opcode definitions								*/
 	/************************************************************************/
 
-	//0D27=4,copy_memory %1d% to %2d% size %3d%
+	//0D27=3,copy_memory %1d% to %2d% size %3d%
 	OpcodeResult __stdcall opcode_0D27(CRunningScript* thread)
 	{
 		// mirrors original opcode from CLEO+/NewOpcodes
@@ -1290,7 +1290,7 @@ namespace CLEO
 		return CCustomOpcodeSystem::ErrorSuspendScript(thread);
 	}
 
-	//0E28=3,write_struct %1d% offset %2d% size %3d% value %4d%
+	//0E28=4,write_struct %1d% offset %2d% size %3d% value %4d%
 	OpcodeResult __stdcall opcode_0E28(CRunningScript* thread)
 	{
 		// mirrors original opcode from CLEO+/NewOpcodes
