@@ -129,6 +129,7 @@ namespace CLEO
 	OpcodeResult __stdcall opcode_2001(CRunningScript* thread); // get_script_filename
 	OpcodeResult __stdcall opcode_2002(CRunningScript* thread); // cleo_return_with
 	OpcodeResult __stdcall opcode_2003(CRunningScript* thread); // cleo_return_fail
+	OpcodeResult __stdcall opcode_2004(CRunningScript* thread); // allocate_memory_persistent
 
 	typedef void(*FuncScriptDeleteDelegateT) (CRunningScript *script);
 	struct ScriptDeleteDelegate {
@@ -443,6 +444,7 @@ namespace CLEO
 		CLEO_RegisterOpcode(0x2001, opcode_2001); // get_script_filename
 		CLEO_RegisterOpcode(0x2002, opcode_2002); // cleo_return_with
 		CLEO_RegisterOpcode(0x2003, opcode_2003); // cleo_return_fail
+		CLEO_RegisterOpcode(0x2004, opcode_2004); // allocate_memory_persistent
 	}
 
 	void CCustomOpcodeSystem::Inject(CCodeInjector& inj)
@@ -2400,14 +2402,33 @@ namespace CLEO
 	//0AC9=1,free_allocated_memory %1d%
 	OpcodeResult __stdcall opcode_0AC9(CRunningScript *thread)
 	{
-		void *mem;
-		*thread >> mem;
+		void *mem; *thread >> mem;
+
+		if ((size_t)mem <= CCustomOpcodeSystem::MinValidAddress)
+		{
+			SHOW_ERROR("[0AC9] used with invalid '0x%X' pointer argument in script %s\nScript suspended.", mem, ((CCustomScript*)thread)->GetInfoStr().c_str());
+			return CCustomOpcodeSystem::ErrorSuspendScript(thread);
+		}
+
+		// allocated with 0AC8
 		auto & allocs = GetInstance().OpcodeSystem.m_pAllocations;
 		if (allocs.find(mem) != allocs.end())
 		{
 			free(mem);
 			allocs.erase(mem);
+			return OR_CONTINUE; // done
 		}
+
+		// allocated with 2004
+		auto& allocsPersist = GetInstance().OpcodeSystem.m_pAllocationsPersistent;
+		if (allocsPersist.find(mem) != allocsPersist.end())
+		{
+			free(mem);
+			allocsPersist.erase(mem);
+			return OR_CONTINUE; // done
+		}
+
+		LOG_WARNING(thread, "[0AC9] used with pointer to unknown or already freed memory in script %s", lastErrorMsg.c_str(), ((CCustomScript*)thread)->GetInfoStr().c_str());
 		return OR_CONTINUE;
 	}
 
@@ -3031,6 +3052,25 @@ namespace CLEO
 
 		SetScriptCondResult(thread, false);
 		return CCustomOpcodeSystem::CleoReturnGeneric(0x2003, thread, false);
+	}
+
+	//2004=2, allocate_memory_persistent size %1d% store_to %2d%
+	OpcodeResult __stdcall opcode_2004(CRunningScript* thread)
+	{
+		DWORD size; *thread >> size;
+
+		void* mem = malloc(size);
+		if (mem) 
+		{
+			DWORD oldProtect;
+			VirtualProtect(mem, size, PAGE_EXECUTE_READWRITE, &oldProtect);
+
+			GetInstance().OpcodeSystem.m_pAllocationsPersistent.insert(mem);
+		}
+
+		SetScriptCondResult(thread, mem != nullptr);
+		*thread << mem;
+		return OR_CONTINUE;
 	}
 }
 

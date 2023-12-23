@@ -39,6 +39,8 @@ namespace CLEO
         {
             TRACE("Last opcode executed: %04X", lastOpcode);
             TRACE("Previous opcode executed: %04X", prevOpcode);
+
+            std::for_each(m_pAllocationsPersistent.begin(), m_pAllocationsPersistent.end(), free);
         }
 
         static bool RegisterOpcode(WORD opcode, CustomOpcodeHandler callback);
@@ -53,10 +55,12 @@ namespace CLEO
         friend OpcodeResult __stdcall opcode_0AA3(CRunningScript *pScript);
         friend OpcodeResult __stdcall opcode_0AC8(CRunningScript *pScript);
         friend OpcodeResult __stdcall opcode_0AC9(CRunningScript *pScript);
+        friend OpcodeResult __stdcall opcode_2004(CRunningScript* pScript); // allocate_memory_persistent
 
         std::set<DWORD> m_hFiles;
         std::set<HMODULE> m_hNativeLibs;
         std::set<void*> m_pAllocations;
+        std::set<void*> m_pAllocationsPersistent;
 
         typedef OpcodeResult(__thiscall* _OpcodeHandler)(CRunningScript* thread, WORD opcode);
 
