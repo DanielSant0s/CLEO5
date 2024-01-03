@@ -389,6 +389,7 @@ public:
 	SCRIPT_VAR* GetPointerToLocalVariable(CRunningScript* script, int varIndex);
 	void ReadArrayInformation(CRunningScript* script, WORD* outArrVarOffset, int* outArrElemIdx);
 	void CollectParams(CRunningScript*, WORD count);
+	void StoreParams(CRunningScript*, WORD count);
 
 #endif // __cplusplus
 };
